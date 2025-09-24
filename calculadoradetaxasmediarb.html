@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Calculadora de Custas — Mediarb</title>
+<style>
+  :root{
+    --bg:#fffaf0;
+    --card:#ffffff;
+    --accent:#2b6cb0;
+    --muted:#6b6b6b;
+    --shadow: 0 6px 18px rgba(0,0,0,0.08);
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  body{
+    margin:0;
+    background: linear-gradient(180deg, var(--bg), #fff);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:20px;
+    color:#222;
+  }
+  .card{
+    width:100%;
+    max-width:760px;
+    background:var(--card);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:22px;
+  }
+  h1{margin:0 0 8px;font-size:20px;}
+  p.lead{margin:0 0 18px;color:var(--muted);}
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 320px;
+    gap:18px;
+  }
+  @media (max-width:820px){ .grid{ grid-template-columns:1fr; } }
+  label{display:block;font-size:13px;margin-bottom:6px;color:#333;}
+  .field{margin-bottom:12px;}
+  input[type="text"], input[type="number"]{
+    width:100%;
+    padding:10px 12px;
+    border-radius:8px;
+    border:1px solid #e0e0e0;
+    font-size:15px;
+    box-sizing:border-box;
+  }
+  .small{font-size:13px;color:var(--muted);}
+  button{
+    background:var(--accent);
+    color:white;
+    border:0;
+    padding:10px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button.secondary{
+    background:transparent;
+    color:var(--accent);
+    border:1px solid #cbd5e1;
+    margin-left:8px;
+  }
+  .results{
+    background:#fbfdff;
+    padding:14px;
+    border-radius:10px;
+    border:1px solid #f0f4f8;
+  }
+  .row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eee;}
+  .row:last-child{border-bottom:0;padding-top:10px;}
+  .value{font-weight:700;}
+  .note{font-size:13px;color:var(--muted);margin-top:8px}
+  .actions{margin-top:12px;display:flex;align-items:center;gap:8px;}
+  .error{color:#b00020;font-size:13px;margin-top:6px}
+  .footer{margin-top:14px;font-size:13px;color:var(--muted)}
+  .copy-ok{color:green;font-size:13px;margin-left:8px}
+</style>
+</head>
+<body>
+  <main class="card" role="main" aria-labelledby="titulo">
+    <h1 id="titulo">Calculadora de Custas — Mediarb</h1>
+    <p class="lead">Calcule a taxa de administração (2%) e as pré-mediações (R$150 por parte). Insira o valor do litígio e o número de partes.</p>
+
+    <div class="grid">
+      <!-- Left: inputs -->
+      <section aria-label="Entradas">
+        <div class="field">
+          <label for="valorLitigio">Valor do litígio (R$)</label>
+          <input id="valorLitigio" inputmode="decimal" placeholder="Ex.: 12500.50" aria-describedby="helpValor"/>
+          <div id="helpValor" class="small">Digite o valor em reais. Use ponto (.) para casas decimais se desejar.</div>
+        </div>
+
+        <div class="field">
+          <label for="numPartes">Número de partes</label>
+          <input id="numPartes" type="number" min="1" step="1" value="2" />
+        </div>
+
+        <div class="field">
+          <label for="taxaPct">Percentual da taxa de administração</label>
+          <input id="taxaPct" type="number" min="0" step="0.01" value="2" />
+          <div class="small">Por padrão 2% — pode ser ajustado se necessário.</div>
+        </div>
+
+        <div class="actions">
+          <button id="calcularBtn">Calcular</button>
+          <button id="limparBtn" class="secondary" type="button">Limpar</button>
+        </div>
+
+        <div id="error" class="error" aria-live="polite" hidden></div>
+
+        <div class="footer">Observação: pré-mediações fixas de <strong>R$150,00</strong> por parte.</div>
+      </section>
+
+      <!-- Right: resultados -->
+      <aside aria-label="Resultados">
+        <div class="results" id="painelResultados" aria-live="polite">
+          <div class="row">
+            <div class="label small">Valor da taxa de administração</div>
+            <div class="value" id="taxaAdmin">—</div>
+          </div>
+
+          <div class="row">
+            <div class="label small">Total pré-mediações (R$150 x partes)</div>
+            <div class="value" id="totalPremediacao">—</div>
+          </div>
+
+          <div class="row">
+            <div class="label small">Total geral</div>
+            <div class="value" id="totalGeral">—</div>
+          </div>
+
+          <div class="note" id="noteDetalhe">Preencha os campos e clique em <em>Calcular</em>.</div>
+
+          <div style="margin-top:10px;display:flex;gap:8px;">
+            <button id="copiarResumo" class="secondary">Copiar resumo</button>
+            <button id="baixarCSV" class="secondary" type="button">Baixar CSV</button>
+            <span id="copiado" class="copy-ok" hidden>Copiado!</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+<script>
+(function(){
+  // Elementos
+  const valorInput = document.getElementById('valorLitigio');
+  const partesInput = document.getElementById('numPartes');
+  const taxaPctInput = document.getElementById('taxaPct');
+  const calcularBtn = document.getElementById('calcularBtn');
+  const limparBtn = document.getElementById('limparBtn');
+  const taxaAdminEl = document.getElementById('taxaAdmin');
+  const totalPremedEl = document.getElementById('totalPremediacao');
+  const totalGeralEl = document.getElementById('totalGeral');
+  const errorEl = document.getElementById('error');
+  const noteDetalhe = document.getElementById('noteDetalhe');
+  const copiarBtn = document.getElementById('copiarResumo');
+  const baixarcsvBtn = document.getElementById('baixarCSV');
+  const copiadoEl = document.getElementById('copiado');
+
+  const PRE_MEDIACAO_POR_PARTE_CENTS = 15000; // R$150,00 em centavos
+
+  function limpaErro(){
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+  }
+  function mostraErro(msg){
+    errorEl.hidden = false;
+    errorEl.textContent = msg;
+  }
+
+  // Converte string do input para centavos (inteiro)
+  function parseValorParaCentavos(str){
+    if(str === null || str === undefined) return NaN;
+    // Remove espaços, currency symbols e vírgulas transformadas para ponto
+    str = String(str).trim().replace(/\s/g,'').replace(/R?\$?/g,'').replace(/\./g, function(m, offset){ 
+      // this naive approach: we'll handle dots by removing thousands separators and replace comma with dot
+      return '.'; // temporarily (we'll normalize after)
+    });
+    // To be robust, replace comma with dot
+    str = str.replace(/,/g,'.');
+    // remove any non digit or dot
+    str = str.replace(/[^0-9.]/g,'');
+    if(str === '') return NaN;
+    // If multiple dots, keep last as decimal separator
+    const parts = str.split('.');
+    let integerPart = parts.slice(0, -1).join('') || parts[0];
+    let decimalPart = parts.length > 1 ? parts[parts.length-1] : '';
+    // Limit decimal to 2 digits
+    decimalPart = decimalPart.padEnd(2,'0').slice(0,2);
+    const cents = Number(integerPart || 0) * 100 + Number(decimalPart || 0);
+    return Math.round(cents);
+  }
+
+  function formataBRL(cents){
+    // cents is integer
+    const reais = cents / 100;
+    return reais.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  }
+
+  function calcular(){
+    limpaErro();
+    copiadoEl.hidden = true;
+
+    const valorRaw = valorInput.value;
+    const partes = Number(partesInput.value);
+    const taxaPct = Number(taxaPctInput.value);
+
+    // validações
+    if(!valorRaw || valorRaw.trim() === ''){
+      mostraErro('Preencha o valor do litígio.');
+      return;
+    }
+    const valorCents = parseValorParaCentavos(valorRaw);
+    if(!Number.isFinite(valorCents) || isNaN(valorCents)){
+      mostraErro('Valor do litígio inválido. Digite um número como 12500 ou 12500.50');
+      return;
+    }
+    if(!Number.isFinite(partes) || partes < 1 || !Number.isInteger(partes)){
+      mostraErro('Número de partes inválido. Deve ser um inteiro maior ou igual a 1.');
+      return;
+    }
+    if(!Number.isFinite(taxaPct) || taxaPct < 0){
+      mostraErro('Percentual da taxa inválido.');
+      return;
+    }
+
+    // Cálculo em centavos para evitar float
+    // taxaAdmin = round(valor * taxaPct / 100)
+    const taxaAdminCents = Math.round( (valorCents * (taxaPct * 100)) / 10000 ); 
+    // Explicação: taxaPct (%) -> taxaPct * 100 (para trabalhar com centésimos de porcento),
+    // (valorCents * taxaPct*100) / 10000 => valorCents * taxaPct/100, arredondado.
+
+    const totalPremedCents = PRE_MEDIACAO_POR_PARTE_CENTS * partes;
+    const totalGeralCents = taxaAdminCents + totalPremedCents;
+
+    // Atualiza UI
+    taxaAdminEl.textContent = formataBRL(taxaAdminCents);
+    totalPremedEl.textContent = formataBRL(totalPremedCents);
+    totalGeralEl.textContent = formataBRL(totalGeralCents);
+
+    noteDetalhe.textContent = `Cálculo feito: taxa ${taxaPct}% sobre ${formataBRL(valorCents)} + R$150,00 por parte (${partes} partes).`;
+  }
+
+  function limpar(){
+    valorInput.value = '';
+    partesInput.value = '2';
+    taxaPctInput.value = '2';
+    taxaAdminEl.textContent = '—';
+    totalPremedEl.textContent = '—';
+    totalGeralEl.textContent = '—';
+    noteDetalhe.textContent = 'Preencha os campos e clique em Calcular.';
+    limpaErro();
+    copiadoEl.hidden = true;
+  }
+
+  function copiarResumo(){
+    const resumo = [
+      'Calculadora Mediarb',
+      'Valor do litígio: ' + (valorInput.value || '-'),
+      'Número de partes: ' + (partesInput.value || '-'),
+      'Taxa administração (' + (taxaPctInput.value || '-') + '%): ' + taxaAdminEl.textContent,
+      'Total pré-mediações: ' + totalPremedEl.textContent,
+      'Total geral: ' + totalGeralEl.textContent,
+    ].join('\\n');
+    navigator.clipboard?.writeText(resumo).then(()=> {
+      copiadoEl.hidden = false;
+      setTimeout(()=> copiadoEl.hidden = true, 2500);
+    }).catch(()=> {
+      mostraErro('Não foi possível copiar para a área de transferência.');
+    });
+  }
+
+  function baixarCSV(){
+    // Gera CSV simples com os valores calculados
+    const valorRaw = valorInput.value || '';
+    const linhas = [
+      ['Campo','Valor'],
+      ['Valor do litígio', valorRaw],
+      ['Número de partes', partesInput.value],
+      ['Percentual taxa (%)', taxaPctInput.value],
+      ['Taxa administração', taxaAdminEl.textContent],
+      ['Total pré-mediações', totalPremedEl.textContent],
+      ['Total geral', totalGeralEl.textContent],
+    ];
+    const csv = linhas.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'custas_mediarb.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Eventos
+  calcularBtn.addEventListener('click', calcular);
+  limparBtn.addEventListener('click', limpar);
+  copiarBtn.addEventListener('click', copiarResumo);
+  baixarcsvBtn.addEventListener('click', baixarCSV);
+
+  // Suporte Enter para calcular no campo de valor
+  valorInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); calcular(); }
+  });
+
+  // Formatação visual simples: ao perder o foco, formatar o valor para BRL (sem alterar underlying input)
+  valorInput.addEventListener('blur', function(){
+    const v = valorInput.value;
+    if(!v || v.trim()==='') return;
+    const cents = parseValorParaCentavos(v);
+    if(!Number.isFinite(cents) || isNaN(cents)) return;
+    valorInput.value = (cents/100).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:2});
+  });
+
+  // Inicializa vazio
+  limpar();
+})();
+</script>
+</body>
+</html>
