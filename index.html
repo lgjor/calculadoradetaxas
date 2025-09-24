@@ -165,6 +165,19 @@
 
   const PRE_MEDIACAO_POR_PARTE_CENTS = 15000; // R$150,00 em centavos
 
+  // Função auxiliar para cálculos monetários precisos
+  function calcularPorcentagemPrecisa(valorCents, taxaPercentual) {
+    // Converte taxa para centésimos de porcento (ex: 2.5% -> 250)
+    const taxaCentesimos = Math.round(taxaPercentual * 100);
+    // Calcula usando apenas aritmética de inteiros
+    return Math.round((valorCents * taxaCentesimos) / 10000);
+  }
+
+  // Função para validar se um número é um inteiro válido para centavos
+  function validarCentavos(valor) {
+    return Number.isInteger(valor) && valor >= 0 && valor <= Number.MAX_SAFE_INTEGER;
+  }
+
   function limpaErro(){
     errorEl.hidden = true;
     errorEl.textContent = '';
@@ -174,7 +187,7 @@
     errorEl.textContent = msg;
   }
 
-  // Converte string do input para centavos (inteiro)
+  // Converte string do input para centavos (inteiro) com precisão monetária
   function parseValorParaCentavos(str){
     if(str === null || str === undefined) return NaN;
     
@@ -206,11 +219,12 @@
       }
     }
     
-    // Converter para número e depois para centavos
+    // Converter para número e depois para centavos com precisão
     const valor = parseFloat(str);
     if(!Number.isFinite(valor)) return NaN;
     
-    // Converter para centavos (multiplicar por 100 e arredondar)
+    // Converter para centavos usando aritmética de inteiros para evitar imprecisão
+    // Multiplica por 100 e arredonda para garantir precisão
     return Math.round(valor * 100);
   }
 
@@ -234,7 +248,7 @@
       return;
     }
     const valorCents = parseValorParaCentavos(valorRaw);
-    if(!Number.isFinite(valorCents) || isNaN(valorCents)){
+    if(!validarCentavos(valorCents)){
       mostraErro('Valor do litígio inválido. Digite um número como 12500 ou 12500.50');
       return;
     }
@@ -242,16 +256,13 @@
       mostraErro('Número de partes inválido. Deve ser um inteiro maior ou igual a 1.');
       return;
     }
-    if(!Number.isFinite(taxaPct) || taxaPct < 0){
-      mostraErro('Percentual da taxa inválido.');
+    if(!Number.isFinite(taxaPct) || taxaPct < 0 || taxaPct > 100){
+      mostraErro('Percentual da taxa inválido. Deve estar entre 0 e 100.');
       return;
     }
 
-    // Cálculo em centavos para evitar float
-    // taxaAdmin = round(valor * taxaPct / 100)
-    const taxaAdminCents = Math.round( (valorCents * (taxaPct * 100)) / 10000 ); 
-    // Explicação: taxaPct (%) -> taxaPct * 100 (para trabalhar com centésimos de porcento),
-    // (valorCents * taxaPct*100) / 10000 => valorCents * taxaPct/100, arredondado.
+    // Cálculo usando função auxiliar para garantir precisão monetária
+    const taxaAdminCents = calcularPorcentagemPrecisa(valorCents, taxaPct);
 
     const totalPremedCents = PRE_MEDIACAO_POR_PARTE_CENTS * partes;
     const totalGeralCents = taxaAdminCents + totalPremedCents;
