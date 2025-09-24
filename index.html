@@ -177,24 +177,41 @@
   // Converte string do input para centavos (inteiro)
   function parseValorParaCentavos(str){
     if(str === null || str === undefined) return NaN;
-    // Remove espaços, currency symbols e vírgulas transformadas para ponto
-    str = String(str).trim().replace(/\s/g,'').replace(/R?\$?/g,'').replace(/\./g, function(m, offset){ 
-      // this naive approach: we'll handle dots by removing thousands separators and replace comma with dot
-      return '.'; // temporarily (we'll normalize after)
-    });
-    // To be robust, replace comma with dot
-    str = str.replace(/,/g,'.');
-    // remove any non digit or dot
-    str = str.replace(/[^0-9.]/g,'');
+    
+    // Remove espaços e símbolos de moeda
+    str = String(str).trim().replace(/\s/g,'').replace(/R?\$?/g,'');
+    
+    // Remove caracteres não numéricos exceto pontos e vírgulas
+    str = str.replace(/[^0-9.,]/g,'');
     if(str === '') return NaN;
-    // If multiple dots, keep last as decimal separator
-    const parts = str.split('.');
-    let integerPart = parts.slice(0, -1).join('') || parts[0];
-    let decimalPart = parts.length > 1 ? parts[parts.length-1] : '';
-    // Limit decimal to 2 digits
-    decimalPart = decimalPart.padEnd(2,'0').slice(0,2);
-    const cents = Number(integerPart || 0) * 100 + Number(decimalPart || 0);
-    return Math.round(cents);
+    
+    // Se há vírgula, ela é o separador decimal (formato brasileiro)
+    if(str.includes(',')) {
+      // Remove pontos (separadores de milhares) e substitui vírgula por ponto
+      str = str.replace(/\./g,'').replace(',','.');
+    } else if(str.includes('.')) {
+      // Se há apenas pontos, verificar se é separador decimal ou de milhares
+      const parts = str.split('.');
+      if(parts.length === 2) {
+        // Se há exatamente 2 partes, o último ponto é separador decimal
+        // Se a última parte tem mais de 2 dígitos, é separador de milhares
+        if(parts[1].length > 2) {
+          // É separador de milhares, remover todos os pontos
+          str = str.replace(/\./g,'');
+        }
+        // Caso contrário, manter como está (separador decimal)
+      } else {
+        // Múltiplos pontos: remover todos (separadores de milhares)
+        str = str.replace(/\./g,'');
+      }
+    }
+    
+    // Converter para número e depois para centavos
+    const valor = parseFloat(str);
+    if(!Number.isFinite(valor)) return NaN;
+    
+    // Converter para centavos (multiplicar por 100 e arredondar)
+    return Math.round(valor * 100);
   }
 
   function formataBRL(cents){
